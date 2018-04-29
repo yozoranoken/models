@@ -26,11 +26,13 @@ import numpy as np
 # Dataset names.
 _CITYSCAPES = 'cityscapes'
 _PASCAL = 'pascal'
+_CAMELYON = 'camelyon'
 
 # Max number of entries in the colormap for each dataset.
 _DATASET_MAX_ENTRIES = {
     _CITYSCAPES: 19,
     _PASCAL: 256,
+    _CAMELYON: 2,
 }
 
 
@@ -64,12 +66,24 @@ def create_cityscapes_label_colormap():
   return colormap
 
 
+def create_camelyon_label_colormap():
+  colormap = np.asarray([
+      [0, 0, 0],
+      [193, 0, 109],
+  ])
+  return colormap
+
+
 def get_pascal_name():
   return _PASCAL
 
 
 def get_cityscapes_name():
   return _CITYSCAPES
+
+
+def get_camelyon_name():
+  return _CAMELYON
 
 
 def bit_get(val, idx):
@@ -118,6 +132,8 @@ def create_label_colormap(dataset=_PASCAL):
     return create_pascal_label_colormap()
   elif dataset == _CITYSCAPES:
     return create_cityscapes_label_colormap()
+  elif dataset == _CAMELYON:
+    return create_camelyon_label_colormap()
   else:
     raise ValueError('Unsupported dataset.')
 

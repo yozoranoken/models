@@ -96,11 +96,20 @@ _PASCAL_VOC_SEG_INFORMATION = DatasetDescriptor(
 # These number (i.e., 'train'/'test') seems to have to be hard coded
 # You are required to figure it out for your training/testing example.
 _ADE20K_INFORMATION = DatasetDescriptor(
-    splits_to_sizes = {
+    splits_to_sizes={
         'train': 20210, # num of samples in images/training
         'val': 2000, # num of samples in images/validation
     },
     num_classes=150,
+    ignore_label=255,
+)
+
+_CAMELYON_INFORMATION = DatasetDescriptor(
+    splits_to_sizes={
+        'train': 405870,
+        'val': 135290,
+    },
+    num_classes=2,
     ignore_label=255,
 )
 
@@ -109,6 +118,7 @@ _DATASETS_INFORMATION = {
     'cityscapes': _CITYSCAPES_INFORMATION,
     'pascal_voc_seg': _PASCAL_VOC_SEG_INFORMATION,
     'ade20k': _ADE20K_INFORMATION,
+    'camelyon': _CAMELYON_INFORMATION,
 }
 
 # Default file pattern of TFRecord of TensorFlow Example.
