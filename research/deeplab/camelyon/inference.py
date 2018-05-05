@@ -16,6 +16,7 @@ from skimage.io import imread
 
 import tensorflow as tf
 
+from deeplab import common
 from deeplab.datasets import build_data
 
 
@@ -44,6 +45,7 @@ class DeepLabModel(object):
 
   INPUT_TENSOR_NAME = 'ImageTensor:0'
   OUTPUT_TENSOR_NAME = 'SemanticPredictions:0'
+  OUTPUT_LOGITS_TENSOR_NAME = 'SemanticProbabilities:0'
   INPUT_SIZE = 768
   FROZEN_GRAPH_NAME = 'frozen_inference_graph'
 
@@ -71,10 +73,9 @@ class DeepLabModel(object):
       resized_image: RGB image resized from original input image.
       seg_map: Segmentation map of `resized_image`.
     """
-    seg_maps = self.sess.run(
-        self.OUTPUT_TENSOR_NAME,
-        feed_dict={self.INPUT_TENSOR_NAME: images})
-    return images, seg_maps
+    seg_maps, logits = self.sess.run([self.OUTPUT_TENSOR_NAME, self.OUTPUT_LOGITS_TENSOR_NAME],
+                             feed_dict={self.INPUT_TENSOR_NAME: images})
+    return images, seg_maps, logits
 
 
 def read_images(image_dir):
@@ -93,12 +94,16 @@ def main(args):
 
     deeplab_model = DeepLabModel(args.pb_path)
     for s in range(0, images.shape[0], 2):
-        batch_images, predictions = deeplab_model.run(images[s:s+2, :, :, :])
+        batch_images, predictions, logits = (
+            deeplab_model.run(images[s:s+2, :, :, :]))
 
-        f, ax = plt.subplots(nrows=batch_images.shape[0], ncols=2)
+        f, ax = plt.subplots(nrows=batch_images.shape[0], ncols=3)
         for i in range(batch_images.shape[0]):
+            lgs = logits[i, : , :, 1]
+            print(lgs[0][0])
             ax[i][0].imshow(batch_images[i])
             ax[i][1].imshow(predictions[i])
+            ax[i][2].imshow(lgs)
         plt.show()
 
 
