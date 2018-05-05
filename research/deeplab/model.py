@@ -154,7 +154,8 @@ def predict_labels_multi_scale(images,
   return outputs_to_predictions
 
 
-def predict_labels(images, model_options, image_pyramid=None):
+def predict_labels(images, model_options, image_pyramid=None,
+                   output_softmax=False):
   """Predicts segmentation labels.
 
   Args:
@@ -183,7 +184,10 @@ def predict_labels(images, model_options, image_pyramid=None):
         align_corners=True)
     predictions[output] = tf.argmax(logits, 3)
 
-  return predictions
+  if output_softmax:
+    return predictions, tf.nn.softmax(logits)
+  else:
+    return predictions
 
 
 def scale_dimension(dim, scale):
