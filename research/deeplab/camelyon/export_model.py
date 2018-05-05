@@ -58,6 +58,7 @@ _INPUT_NAME = 'ImageTensor'
 
 # Output name of the exported model.
 _OUTPUT_NAME = 'SemanticPredictions'
+_OUTPUT_LOGITS_NAME = 'SemanticProbabilities'
 
 
 def _create_input_tensors():
@@ -94,22 +95,15 @@ def main(unused_argv):
         atrous_rates=FLAGS.atrous_rates,
         output_stride=FLAGS.output_stride)
 
-    if tuple(FLAGS.inference_scales) == (1.0,):
-      tf.logging.info('Exported model performs single-scale inference.')
-      predictions = model.predict_labels(
-          images,
-          model_options=model_options,
-          image_pyramid=FLAGS.image_pyramid)
-    else:
-      tf.logging.info('Exported model performs multi-scale inference.')
-      predictions = model.predict_labels_multi_scale(
-          images,
-          model_options=model_options,
-          eval_scales=FLAGS.inference_scales,
-          add_flipped_images=FLAGS.add_flipped_images)
+    predictions, logits = model.predict_labels(
+        images,
+        model_options=model_options,
+        output_logits=True,
+        image_pyramid=FLAGS.image_pyramid)
 
     semantic_predictions = tf.identity(predictions[common.OUTPUT_TYPE],
                                        name=_OUTPUT_NAME)
+    softmax = tf.identity(logits, name=_OUTPUT_SOFTMAX_NAME)
 
     saver = tf.train.Saver(tf.model_variables())
 
@@ -118,7 +112,7 @@ def main(unused_argv):
         tf.get_default_graph().as_graph_def(add_shapes=True),
         saver.as_saver_def(),
         FLAGS.checkpoint_path,
-        _OUTPUT_NAME,
+        ','.join([_OUTPUT_NAME, _OUTPUT_SOFTMAX_NAME]),
         restore_op_name=None,
         filename_tensor_name=None,
         output_graph=FLAGS.export_path,
