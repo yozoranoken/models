@@ -212,7 +212,7 @@ def main(args):
     name_count = len(names)
     for i, wsi_name in enumerate(names):
         wsi_path = args.wsi_dir / f'{wsi_name}.tif'
-        slide = OpenSlide(str(wsi_path
+        slide = OpenSlide(str(wsi_path))
 
         print(f'>> Inferring {wsi_name} [{i + 1} / {name_count}]')
 
