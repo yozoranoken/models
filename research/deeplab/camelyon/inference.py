@@ -1,6 +1,6 @@
 #! /usr/bin/env python3.6
 from argparse import ArgumentParser
-from math import floor
+from math import ceil
 from pathlib import Path
 import sys
 
@@ -29,6 +29,8 @@ _PATCH_DIM = _PATCH_SIDE, _PATCH_SIDE
 _SLIDE_LEVEL = 1
 _SLIDE_THRESHOLD_LEVEL = 5
 _PATCH_STRIDE = 1024
+_OFFSET = (_PATCH_SIDE - _PATCH_STRIDE) // 2
+
 
 def collect_arguments():
     parser = ArgumentParser()
@@ -159,20 +161,19 @@ def load_slide_threshold(slide, thresh_dim):
     return thresh
 
 
-def generate_patch_batch(slide, threshold, thresh_patch_side, stride,
-                         batch_size):
+def generate_patch_batch(slide, threshold, stride, batch_size):
         coords = []
         images = []
 
+        offset_0 = _OFFSET * 2**_SLIDE_LEVEL
+
         sample_level_factor = 2**_SLIDE_THRESHOLD_LEVEL
         h, w = threshold.shape
-        h, w = h - stride, w - stride
         count = 0
         total = h * w // stride**2
         for y in range(0, h, stride):
             for x in range(0, w, stride):
-                region = threshold[y:(y + thresh_patch_side),
-                                   x:(x + thresh_patch_side)]
+                region = threshold[y:(y + stride), x:(x + stride)]
 
                 count += 1
                 print(f'>> {(count / total * 100):.2f}% done', end='\r')
@@ -180,7 +181,8 @@ def generate_patch_batch(slide, threshold, thresh_patch_side, stride,
                 if True not in region:
                     continue
                 coord = x, y
-                coord_0 = x * sample_level_factor, y * sample_level_factor
+                x_0, y_0 = x * sample_level_factor, y * sample_level_factor
+                coord_0 = x_0 - offset_0, y_0 - offset_0
                 patch = (slide.read_region(coord_0, _SLIDE_LEVEL, _PATCH_DIM)
                          .convert('RGB'))
                 images.append(patch)
@@ -226,10 +228,8 @@ def main(args):
         thresh_patch_side = (_PATCH_SIDE // size_factor)
         thresh_patch_stride = (_PATCH_STRIDE // size_factor)
         thresh_patch_dim = thresh_patch_stride, thresh_patch_stride
-        thresh_w = (floor(w / _PATCH_STRIDE) * thresh_patch_stride +
-                    thresh_patch_side)
-        thresh_h = (floor(h / _PATCH_STRIDE) * thresh_patch_stride +
-                    thresh_patch_side)
+        thresh_w = ceil(w / _PATCH_STRIDE) * thresh_patch_stride
+        thresh_h = ceil(h / _PATCH_STRIDE) * thresh_patch_stride
         thresh_dim = thresh_h, thresh_w
 
         semantic_full = np.full(thresh_dim, 0, dtype=np.uint8)
@@ -240,7 +240,6 @@ def main(args):
         patch_batches = generate_patch_batch(
             slide,
             threshold,
-            thresh_patch_side,
             thresh_patch_stride,
             batch_size,
         )
@@ -257,13 +256,22 @@ def main(args):
                 y_end = y + thresh_patch_stride
                 x_end = x + thresh_patch_stride
                 semantic_ds = resize(
-                    semantic[i, :_PATCH_STRIDE, :_PATCH_STRIDE],
+                    semantic[
+                        i,
+                        _OFFSET:(_OFFSET + _PATCH_STRIDE),
+                        _OFFSET:(_OFFSET + _PATCH_STRIDE),
+                    ],
                     thresh_patch_dim,
                     preserve_range=True)
                 semantic_full[y:y_end, x:x_end] = semantic_ds
 
                 softmax_ds = resize(
-                    softmax[i, :_PATCH_STRIDE, :_PATCH_STRIDE, 1],
+                    softmax[
+                        i,
+                        _OFFSET:(_OFFSET + _PATCH_STRIDE),
+                        _OFFSET:(_OFFSET + _PATCH_STRIDE),
+                        1,
+                    ],
                     thresh_patch_dim,
                 )
                 softmax_full[y:y_end, x:x_end] = softmax_ds
