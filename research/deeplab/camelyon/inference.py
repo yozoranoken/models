@@ -209,9 +209,12 @@ def main(args):
     deeplab_model = DeepLabModel(args.pb_path)
     cmap = plt.get_cmap(_PYPLOT_CMAP_NAME)
 
-    for wsi_name in names:
+    name_count = len(names)
+    for i, wsi_name in enumerate(names):
         wsi_path = args.wsi_dir / f'{wsi_name}.tif'
-        slide = OpenSlide(str(wsi_path))
+        slide = OpenSlide(str(wsi_path
+
+        print(f'>> Inferring {wsi_name} [{i + 1} / {name_count}]')
 
         w, h = slide.level_dimensions[_SLIDE_LEVEL]
         size_factor = 2**(_SLIDE_THRESHOLD_LEVEL - _SLIDE_LEVEL)
@@ -237,8 +240,8 @@ def main(args):
             batch_size,
         )
 
-        iterations = 0
-        max_iterations = 1
+        # iterations = 0
+        # max_iterations = 1
         for images, coordinates in patch_batches:
             _, semantic, softmax = deeplab_model.run(images)
 
@@ -260,20 +263,17 @@ def main(args):
                 )
                 softmax_full[y:y_end, x:x_end] = softmax_ds
 
-            iterations += 1
-            if iterations > max_iterations:
-                break
+            # iterations += 1
+            # if iterations > max_iterations:
+            #     break
 
         orig_w, orig_h = slide.level_dimensions[_SLIDE_THRESHOLD_LEVEL]
 
-        stem = wsi_path.stem
-
-
         semantic_full = semantic_full[:orig_h, :orig_w]
-        imsave(str(semantic_dir / f'{stem}.png'), semantic_full)
+        imsave(str(semantic_dir / f'{wsi_name}.png'), semantic_full)
 
         softmax_full = softmax_full[:orig_h, :orig_w]
-        imsave(str(softmax_dir / f'{stem}.png'), softmax_full)
+        imsave(str(softmax_dir / f'{wsi_name}.png'), softmax_full)
 
 
         if args.save_colored:
@@ -281,11 +281,11 @@ def main(args):
                 semantic_full,
                 get_dataset_colormap.get_camelyon_name(),
             )
-            imsave(str(colored_semantic_dir / f'{stem}.png'),
+            imsave(str(colored_semantic_dir / f'{wsi_name}.png'),
                    colored_semantic_full)
 
             colored_softmax_full = cmap(softmax_full)[:, :, :3]
-            imsave(str(colored_softmax_dir / f'{stem}.png'),
+            imsave(str(colored_softmax_dir / f'{wsi_name}.png'),
                    colored_softmax_full)
 
         slide.close()
