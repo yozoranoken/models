@@ -186,7 +186,7 @@ def generate_patch_batch(slide, threshold, thresh_patch_side, stride,
 
 
                 if (len(images) == batch_size or
-                        (y == h - stride and x == w - stride)):
+                        (y + stride >= h and x + stride >= w)):
                     yield np.stack(images), np.stack(coords)
                     coords = []
                     images = []
