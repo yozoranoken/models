@@ -2,6 +2,7 @@
 from argparse import ArgumentParser
 from math import floor
 from pathlib import Path
+import sys
 
 from matplotlib import pyplot as plt
 import numpy as np
@@ -140,7 +141,8 @@ def threshold_hs(img_np):
     binary = np.bitwise_and(binary_h, binary_s)
     binary = morphology.remove_small_objects(binary)
     binary = morphology.remove_small_holes(binary)
-    binary = median(binary)
+    # binary = median(binary)
+    binary = morphology.binary_dilation(binary, morphology.disk(10))
 
     return binary.astype(bool)
 
@@ -189,7 +191,7 @@ def generate_patch_batch(slide, threshold, thresh_patch_side, stride,
                     yield np.stack(images), np.stack(coords)
                     coords = []
                     images = []
-        if len(images) == batch_size:
+        if images:
             yield np.stack(images), np.stack(coords)
             coords = []
             images = []
