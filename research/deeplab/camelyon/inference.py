@@ -181,6 +181,8 @@ def generate_patch_batch(slide, threshold, thresh_patch_side, batch_size):
 def main(args):
     names = get_names(args.data_list_file, args.wsi_dir)
 
+    deeplab_model = DeepLabModel(args.pb_path)
+
     for wsi_name in names:
         wsi_path = args.wsi_dir / f'{wsi_name}.tif'
         slide = OpenSlide(str(wsi_path))
@@ -205,8 +207,6 @@ def main(args):
             thresh_patch_side,
             batch_size,
         )
-
-        deeplab_model = DeepLabModel(args.pb_path)
 
         max_iterations = 100
         iterations = 0
