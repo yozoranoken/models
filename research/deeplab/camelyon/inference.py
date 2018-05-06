@@ -185,12 +185,15 @@ def generate_patch_batch(slide, threshold, thresh_patch_side, stride,
                 coords.append(coord)
 
 
-                if (len(images) == batch_size or
-                        (y + stride >= h and x + stride >= w)):
+                if len(images) == batch_size:
                     yield np.stack(images), np.stack(coords)
                     coords = []
                     images = []
-
+                    
+        if images:
+            yield np.stack(images), np.stack(coords)
+            coords = []
+            images = []
 
 def main(args):
     output_dir = args.output_parent_dir / args.output_folder_name
