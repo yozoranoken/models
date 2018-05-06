@@ -189,8 +189,7 @@ def generate_patch_batch(slide, threshold, thresh_patch_side, stride,
                     yield np.stack(images), np.stack(coords)
                     coords = []
                     images = []
-                    
-        if images:
+        if len(images) == batch_size:
             yield np.stack(images), np.stack(coords)
             coords = []
             images = []
@@ -249,7 +248,7 @@ def main(args):
         for images, coordinates in patch_batches:
             _, semantic, softmax = deeplab_model.run(images)
 
-            for i in range(batch_size):
+            for i in range(images.shape[0]):
                 x, y = coordinates[i]
                 img = images[i]
 
