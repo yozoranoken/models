@@ -1,6 +1,6 @@
 #! /usr/bin/env python3.6
 from argparse import ArgumentParser
-from math import ceil
+from math import floor
 from pathlib import Path
 
 from matplotlib import pyplot as plt
@@ -10,17 +10,24 @@ from skimage import morphology
 from skimage.color import rgb2hsv
 from skimage.filters import threshold_otsu
 from skimage.filters.rank import median
+from skimage.io import imsave
 from skimage.transform import resize
 import tensorflow as tf
+
+from deeplab.utils import get_dataset_colormap
 
 
 _OUTPUT_SEMANTIC_DIRNAME = 'semantic'
 _OUTPUT_SOFTMAX_DIRNAME = 'softmax'
+_OUTPUT_COLORED_SEMANTIC_DIRNAME = 'colored_semantic'
+_OUTPUT_COLORED_SOFTMAX_DIRNAME = 'colored_softmax'
 _WSI_FILES = '*.tif'
-_PATCH_SIDE = 768
+_PYPLOT_CMAP_NAME = 'jet'
+_PATCH_SIDE = 1280
 _PATCH_DIM = _PATCH_SIDE, _PATCH_SIDE
 _SLIDE_LEVEL = 1
 _SLIDE_THRESHOLD_LEVEL = 5
+_PATCH_STRIDE = 1024
 
 def collect_arguments():
     parser = ArgumentParser()
@@ -60,6 +67,11 @@ def collect_arguments():
         default=1,
     )
 
+    parser.add_argument(
+        '--save-colored',
+        action='store_true',
+    )
+
     return parser.parse_args()
 
 
@@ -69,7 +81,7 @@ class DeepLabModel(object):
   INPUT_TENSOR_NAME = 'ImageTensor:0'
   OUTPUT_TENSOR_NAME = 'SemanticPredictions:0'
   OUTPUT_LOGITS_TENSOR_NAME = 'SoftmaxProbabilities:0'
-  INPUT_SIZE = 768
+  INPUT_SIZE = 1280
   FROZEN_GRAPH_NAME = 'frozen_inference_graph'
 
   def __init__(self, frozen_graph_filename):
@@ -145,18 +157,19 @@ def load_slide_threshold(slide, thresh_dim):
     return thresh
 
 
-def generate_patch_batch(slide, threshold, thresh_patch_side, batch_size):
+def generate_patch_batch(slide, threshold, thresh_patch_side, stride,
+                         batch_size):
         coords = []
         images = []
 
         sample_level_factor = 2**_SLIDE_THRESHOLD_LEVEL
-        stride = thresh_patch_side
         h, w = threshold.shape
         count = 0
         total = h * w // stride**2
-        for y in range(0, h, stride):
-            for x in range(0, w, stride):
-                region = threshold[y:(y + stride), x:(x + stride)]
+        for y in range(0, h - stride, stride):
+            for x in range(0, w - stride, stride):
+                region = threshold[y:(y + thresh_patch_side),
+                                   x:(x + thresh_patch_side)]
 
                 count += 1
                 print(f'>> {(count / total * 100):.2f}% done', end='\r')
@@ -179,9 +192,22 @@ def generate_patch_batch(slide, threshold, thresh_patch_side, batch_size):
 
 
 def main(args):
+    output_dir = args.output_parent_dir / args.output_folder_name
+    semantic_dir = output_dir / _OUTPUT_SEMANTIC_DIRNAME
+    softmax_dir = output_dir / _OUTPUT_SOFTMAX_DIRNAME
+    semantic_dir.mkdir(parents=True, exist_ok=True)
+    softmax_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.save_colored:
+        colored_semantic_dir = output_dir / _OUTPUT_COLORED_SEMANTIC_DIRNAME
+        colored_softmax_dir = output_dir / _OUTPUT_COLORED_SOFTMAX_DIRNAME
+        colored_semantic_dir.mkdir(parents=True, exist_ok=True)
+        colored_softmax_dir.mkdir(parents=True, exist_ok=True)
+
     names = get_names(args.data_list_file, args.wsi_dir)
 
     deeplab_model = DeepLabModel(args.pb_path)
+    cmap = plt.get_cmap(_PYPLOT_CMAP_NAME)
 
     for wsi_name in names:
         wsi_path = args.wsi_dir / f'{wsi_name}.tif'
@@ -190,14 +216,16 @@ def main(args):
         w, h = slide.level_dimensions[_SLIDE_LEVEL]
         size_factor = 2**(_SLIDE_THRESHOLD_LEVEL - _SLIDE_LEVEL)
         thresh_patch_side = (_PATCH_SIDE // size_factor)
-        thresh_patch_dim = thresh_patch_side, thresh_patch_side
-        thresh_w = ceil(w / _PATCH_SIDE) * thresh_patch_side
-        thresh_h = ceil(h / _PATCH_SIDE) * thresh_patch_side
+        thresh_patch_stride = (_PATCH_STRIDE // size_factor)
+        thresh_patch_dim = thresh_patch_stride, thresh_patch_stride
+        thresh_w = (floor(w / _PATCH_STRIDE) * thresh_patch_stride +
+                    thresh_patch_side)
+        thresh_h = (floor(h / _PATCH_STRIDE) * thresh_patch_stride +
+                    thresh_patch_side)
         thresh_dim = thresh_h, thresh_w
 
         semantic_full = np.full(thresh_dim, 0, dtype=np.uint8)
         softmax_full = np.full(thresh_dim, 0, dtype=np.float32)
-        # wsi_img = np.full(thresh_dim + (3,), 0, dtype=np.uint8)
 
         threshold = load_slide_threshold(slide, thresh_dim)
         batch_size = args.batch_size
@@ -205,11 +233,12 @@ def main(args):
             slide,
             threshold,
             thresh_patch_side,
+            thresh_patch_stride,
             batch_size,
         )
 
-        max_iterations = 100
         iterations = 0
+        max_iterations = 1
         for images, coordinates in patch_batches:
             _, semantic, softmax = deeplab_model.run(images)
 
@@ -217,29 +246,49 @@ def main(args):
                 x, y = coordinates[i]
                 img = images[i]
 
-                y_end = y + thresh_patch_side
-                x_end = x + thresh_patch_side
-                # resized = resize(img, thresh_patch_dim + (3,),
-                #                  preserve_range=True)
-                # wsi_img[y:y_end, x:x_end, :] = resized
-                semantic_ds = resize(semantic[i, :, :], thresh_patch_dim,
-                                     preserve_range=True)
+                y_end = y + thresh_patch_stride
+                x_end = x + thresh_patch_stride
+                semantic_ds = resize(
+                    semantic[i, :_PATCH_STRIDE, :_PATCH_STRIDE],
+                    thresh_patch_dim,
+                    preserve_range=True)
                 semantic_full[y:y_end, x:x_end] = semantic_ds
 
-                softmax_ds = resize(softmax[i, :, :, 1], thresh_patch_dim)
+                softmax_ds = resize(
+                    softmax[i, :_PATCH_STRIDE, :_PATCH_STRIDE, 1],
+                    thresh_patch_dim,
+                )
                 softmax_full[y:y_end, x:x_end] = softmax_ds
 
             iterations += 1
             if iterations > max_iterations:
                 break
 
-        f, ax = plt.subplots(nrows=1, ncols=2, sharex=True, sharey=True)
-        ax[0].imshow(semantic_full)
-        ax[1].imshow(softmax_full)
-        plt.show()
-        # plt.imshow(wsi_img)
-        # plt.show()
+        orig_w, orig_h = slide.level_dimensions[_SLIDE_THRESHOLD_LEVEL]
 
+        stem = wsi_path.stem
+
+
+        semantic_full = semantic_full[:orig_h, :orig_w]
+        imsave(str(semantic_dir / f'{stem}.png'), semantic_full)
+
+        softmax_full = softmax_full[:orig_h, :orig_w]
+        imsave(str(softmax_dir / f'{stem}.png'), softmax_full)
+
+
+        if args.save_colored:
+            colored_semantic_full = get_dataset_colormap.label_to_color_image(
+                semantic_full,
+                get_dataset_colormap.get_camelyon_name(),
+            )
+            imsave(str(colored_semantic_dir / f'{stem}.png'),
+                   colored_semantic_full)
+
+            colored_softmax_full = cmap(softmax_full)[:, :, :3]
+            imsave(str(colored_softmax_dir / f'{stem}.png'),
+                   colored_softmax_full)
+
+        slide.close()
 
 if __name__ == '__main__':
     main(collect_arguments())

@@ -20,6 +20,8 @@ $PYTHON_BIN $PY_SCRIPT \
     --export_path $EXPORT_PATH \
     --atrous_rates=6 \
     --atrous_rates=12 \
+    --crop_size=1280 \
+    --crop_size=1280 \
     --atrous_rates=18 \
     --output_stride=16 \
     --decoder_output_stride=4
