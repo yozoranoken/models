@@ -164,10 +164,11 @@ def generate_patch_batch(slide, threshold, thresh_patch_side, stride,
 
         sample_level_factor = 2**_SLIDE_THRESHOLD_LEVEL
         h, w = threshold.shape
+        h, w = h - stride, w - stride
         count = 0
         total = h * w // stride**2
-        for y in range(0, h - stride, stride):
-            for x in range(0, w - stride, stride):
+        for y in range(0, h, stride):
+            for x in range(0, w, stride):
                 region = threshold[y:(y + thresh_patch_side),
                                    x:(x + thresh_patch_side)]
 
