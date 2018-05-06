@@ -58,7 +58,7 @@ _INPUT_NAME = 'ImageTensor'
 
 # Output name of the exported model.
 _OUTPUT_NAME = 'SemanticPredictions'
-_OUTPUT_LOGITS_NAME = 'SemanticProbabilities'
+_OUTPUT_SOFTMAX_NAME = 'SoftmaxProbabilities'
 
 
 def _create_input_tensors():
@@ -98,7 +98,7 @@ def main(unused_argv):
     predictions, logits = model.predict_labels(
         images,
         model_options=model_options,
-        output_logits=True,
+        output_softmax=True,
         image_pyramid=FLAGS.image_pyramid)
 
     semantic_predictions = tf.identity(predictions[common.OUTPUT_TYPE],
