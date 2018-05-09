@@ -107,6 +107,7 @@ _ADE20K_INFORMATION = DatasetDescriptor(
 _CAMELYON_INFORMATION = DatasetDescriptor(
     splits_to_sizes={
         'train': 405870,
+        'train_bootstrap': 143681,
         'val': 10000,
     },
     num_classes=2,
